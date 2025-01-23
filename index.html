@@ -78,34 +78,13 @@
                                 // Initialize default user input for this marker
                                 userInputs[markerId] = {
                                     sliderValue: 50, // Default slider value
-                                    dropdownValue: "option1", // Default dropdown value
+                                    dropdownValue: "oca", // Default dropdown value
                                 };
 
-                                const popupContent = `
-                                    <strong>Unit Name:</strong> ${unitName}<br>
-                                    <strong>Latitude:</strong> ${lat}<br>
-                                    <strong>Longitude:</strong> ${lng}<br><br>
-                                    <label for="slider-${index}">Adjust Value:</label>
-                                    <input type="range" id="slider-${index}" min="0" max="100" value="${userInputs[markerId].sliderValue}"><br><br>
-                                    <label for="dropdown-${index}">Choose Option:</label>
-                                    <select id="dropdown-${index}">
-                                        <option value="oca" ${userInputs[markerId].dropdownValue === "oca" ? "selected" : ""}>OCA</option>
-                                        <option value="dca" ${userInputs[markerId].dropdownValue === "dca" ? "selected" : ""}>DCA</option>
-                                        <option value="cas" ${userInputs[markerId].dropdownValue === "cas" ? "selected" : ""}>CAS</option>
-<option value="ai" ${userInputs[markerId].dropdownValue === "ai" ? "selected" : ""}>AI</option>
-<option value="sead" ${userInputs[markerId].dropdownValue === "sead" ? "selected" : ""}>SEAD</option>
-<option value="sa" ${userInputs[markerId].dropdownValue === "sa" ? "selected" : ""}>SA</option>
-<option value="csar" ${userInputs[markerId].dropdownValue === "csar" ? "selected" : ""}>CSAR</option>
-<option value="air-mob" ${userInputs[markerId].dropdownValue === "air-mob" ? "selected" : ""}>Air Mob</option>
-                                    </select>
-                                `;
+                                const marker = L.marker([lat, lng]).addTo(markerClusterGroup);
 
-                                const marker = L.marker([lat, lng]);
-                                marker.bindPopup(popupContent);
-
-                                // Add event listeners when the popup is opened
+                                // Attach dynamic pop-up content logic
                                 marker.on('popupopen', function () {
-                                    // Regenerate the popup content with the latest values
                                     const popupContent = `
                                         <strong>Unit Name:</strong> ${unitName}<br>
                                         <strong>Latitude:</strong> ${lat}<br>
@@ -114,16 +93,21 @@
                                         <input type="range" id="slider-${index}" min="0" max="100" value="${userInputs[markerId].sliderValue}"><br><br>
                                         <label for="dropdown-${index}">Choose Option:</label>
                                         <select id="dropdown-${index}">
-                                            <option value="option1" ${userInputs[markerId].dropdownValue === "option1" ? "selected" : ""}>Option 1</option>
-                                            <option value="option2" ${userInputs[markerId].dropdownValue === "option2" ? "selected" : ""}>Option 2</option>
-                                            <option value="option3" ${userInputs[markerId].dropdownValue === "option3" ? "selected" : ""}>Option 3</option>
+                                            <option value="oca" ${userInputs[markerId].dropdownValue === "oca" ? "selected" : ""}>OCA</option>
+                                            <option value="dca" ${userInputs[markerId].dropdownValue === "dca" ? "selected" : ""}>DCA</option>
+                                            <option value="cas" ${userInputs[markerId].dropdownValue === "cas" ? "selected" : ""}>CAS</option>
+                                            <option value="ai" ${userInputs[markerId].dropdownValue === "ai" ? "selected" : ""}>AI</option>
+                                            <option value="sead" ${userInputs[markerId].dropdownValue === "sead" ? "selected" : ""}>SEAD</option>
+                                            <option value="sa" ${userInputs[markerId].dropdownValue === "sa" ? "selected" : ""}>SA</option>
+                                            <option value="csar" ${userInputs[markerId].dropdownValue === "csar" ? "selected" : ""}>CSAR</option>
+                                            <option value="air-mob" ${userInputs[markerId].dropdownValue === "air-mob" ? "selected" : ""}>Air Mob</option>
                                         </select>
                                     `;
 
-                                    // Update the popup content dynamically
-                                    marker.setPopupContent(popupContent);
+                                    // Update the popup content
+                                    marker.getPopup().setContent(popupContent);
 
-                                    // Reattach event listeners after regenerating the popup content
+                                    // Reattach event listeners
                                     const slider = document.getElementById(`slider-${index}`);
                                     slider.addEventListener('input', function () {
                                         userInputs[markerId].sliderValue = parseInt(slider.value, 10);
@@ -137,8 +121,7 @@
                                     });
                                 });
 
-
-                                markerClusterGroup.addLayer(marker);
+                                marker.bindPopup(""); // Attach an empty popup to enable dynamic content
                             }
                         });
 
@@ -180,5 +163,3 @@
     </script>
 </body>
 </html>
-
-
