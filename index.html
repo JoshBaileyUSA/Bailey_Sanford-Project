@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Leaflet Map with Excel Import</title>
+    <title>Scenario Builder</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -12,10 +12,15 @@
 </head>
 <body>
     <div class="container mt-3">
-        <h1 class="text-center">Leaflet Map with Excel Import</h1>
+        <h1 class="text-center">Scenario Builder</h1>
         <div class="mb-3">
             <label for="fileInput" class="form-label">Upload Excel File:</label>
             <input type="file" id="fileInput" class="form-control">
+        </div>
+        <div class="mb-3">
+            <label for="searchInput" class="form-label">Search for a City or Unit Name:</label>
+            <input type="text" id="searchInput" class="form-control" placeholder="Enter city or unit name">
+            <button id="searchButton" class="btn btn-primary mt-2">Search</button>
         </div>
         <div id="map" style="height: 500px;"></div>
     </div>
@@ -34,6 +39,9 @@
         const markerClusterGroup = L.markerClusterGroup();
         map.addLayer(markerClusterGroup);
 
+        // Store markers for search functionality
+        const markerData = [];
+
         // Handle file input
         document.getElementById('fileInput').addEventListener('change', function(event) {
             const file = event.target.files[0];
@@ -51,13 +59,14 @@
 
                         console.log('Parsed data:', jsonData);
 
-                        // Find the index of "Latitude" and "Longitude" columns
+                        // Find the index of "Latitude", "Longitude", and "Unit Name" columns
                         const headers = jsonData[0].map(header => header.toLowerCase());
                         const latIndex = headers.indexOf("latitude");
                         const lngIndex = headers.indexOf("longitude");
+                        const unitNameIndex = headers.indexOf("unit name");
 
-                        if (latIndex === -1 || lngIndex === -1) {
-                            alert('The file must contain columns labeled "Latitude" and "Longitude" (case-insensitive).');
+                        if (latIndex === -1 || lngIndex === -1 || unitNameIndex === -1) {
+                            alert('The file must contain columns labeled "Latitude", "Longitude", and "Unit Name" (case-insensitive).');
                             return;
                         }
 
@@ -66,13 +75,17 @@
                             jsonData.slice(1).forEach((row, index) => {
                                 const lat = parseFloat(row[latIndex]);
                                 const lng = parseFloat(row[lngIndex]);
+                                const unitName = row[unitNameIndex] || "Unknown Unit";
 
                                 if (!isNaN(lat) && !isNaN(lng)) {
-                                    console.log(`Adding marker at row ${index + 1}:`, lat, lng);
+                                    console.log(`Adding marker at row ${index + 1}:`, lat, lng, unitName);
                                     const marker = L.marker([lat, lng]);
-                                    marker.bindPopup(`<strong>Latitude:</strong> ${lat}<br><strong>Longitude:</strong> ${lng}`);
+                                    marker.bindPopup(`<strong>Unit Name:</strong> ${unitName}<br><strong>Latitude:</strong> ${lat}<br><strong>Longitude:</strong> ${lng}`);
 
                                     markerClusterGroup.addLayer(marker);
+
+                                    // Store marker data for search
+                                    markerData.push({ lat, lng, unitName });
                                 } else {
                                     console.warn(`Invalid coordinates at row ${index + 1}:`, row);
                                 }
@@ -88,12 +101,48 @@
                         }
                     } catch (error) {
                         console.error('Error processing file:', error);
-                        alert('An error occurred while processing the file. Please ensure it is a valid Excel file with latitude and longitude data.');
+                        alert('An error occurred while processing the file. Please ensure it is a valid Excel file with latitude, longitude, and unit name data.');
                     }
                 };
                 reader.readAsArrayBuffer(file);
             } else {
                 alert('No file selected.');
+            }
+        });
+
+        // Handle search
+        document.getElementById('searchButton').addEventListener('click', async function() {
+            const query = document.getElementById('searchInput').value.trim();
+
+            if (query === '') {
+                alert('Please enter a city or unit name to search.');
+                return;
+            }
+
+            // Search for unit name
+            const unitResult = markerData.find(marker => marker.unitName.toLowerCase().includes(query.toLowerCase()));
+
+            if (unitResult) {
+                map.setView([unitResult.lat, unitResult.lng], 12);
+                
+                return;
+            }
+
+            // If not found, search for a city using OpenStreetMap's Nominatim API
+            try {
+                const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
+                const results = await response.json();
+
+                if (results.length > 0) {
+                    const { lat, lon, display_name } = results[0];
+                    map.setView([parseFloat(lat), parseFloat(lon)], 12);
+                    
+                } else {
+                    alert('No matching city or unit name found.');
+                }
+            } catch (error) {
+                console.error('Error fetching city data:', error);
+                alert('An error occurred while searching for the city.');
             }
         });
     </script>
