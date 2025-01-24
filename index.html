@@ -77,7 +77,7 @@
 
                                 // Initialize default user input for this marker
                                 userInputs[markerId] = {
-                                    sliderValue: 50, // Default slider value
+                                    sliderValue: 100, // Default slider value
                                     dropdownValue: "oca", // Default dropdown value
                                 };
 
@@ -91,7 +91,7 @@
                                         <strong>Longitude:</strong> ${lng}<br><br>
                                         <label for="slider-${index}">Adjust Value:</label>
                                         <input type="range" id="slider-${index}" min="0" max="100" value="${userInputs[markerId].sliderValue}"><br><br>
-                                        <label for="dropdown-${index}">Choose Option:</label>
+                                        <label for="dropdown-${index}">Task Unit:</label>
                                         <select id="dropdown-${index}">
                                             <option value="oca" ${userInputs[markerId].dropdownValue === "oca" ? "selected" : ""}>OCA</option>
                                             <option value="dca" ${userInputs[markerId].dropdownValue === "dca" ? "selected" : ""}>DCA</option>
