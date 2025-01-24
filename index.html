@@ -55,14 +55,16 @@
                         const worksheet = workbook.Sheets[sheetName];
                         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
-                        // Find the index of "Latitude", "Longitude", and "Unit Name" columns
+                        // Find the index of "Latitude", "Longitude", "Unit Name", and "Domain" columns
                         const headers = jsonData[0].map(header => header.toLowerCase());
                         const latIndex = headers.indexOf("latitude");
                         const lngIndex = headers.indexOf("longitude");
                         const unitNameIndex = headers.indexOf("unit name");
+                        const domainIndex = headers.indexOf("domain");
 
-                        if (latIndex === -1 || lngIndex === -1 || unitNameIndex === -1) {
-                            alert('The file must contain columns labeled "Latitude", "Longitude", and "Unit Name".');
+                        // Check if any required column is missing
+                        if (latIndex === -1 || lngIndex === -1 || unitNameIndex === -1 || domainIndex === -1) {
+                            alert('The file must contain columns labeled "Latitude", "Longitude", "Unit Name", and "Domain".');
                             return;
                         }
 
@@ -71,6 +73,7 @@
                             const lat = parseFloat(row[latIndex]);
                             const lng = parseFloat(row[lngIndex]);
                             const unitName = row[unitNameIndex] || "Unknown Unit";
+                            const domain = row[domainIndex] || "Unknown Domain";
 
                             if (!isNaN(lat) && !isNaN(lng)) {
                                 const markerId = `marker-${index}`; // Unique ID for each marker
@@ -78,30 +81,67 @@
                                 // Initialize default user input for this marker
                                 userInputs[markerId] = {
                                     sliderValue: 100, // Default slider value
-                                    dropdownValue: "oca", // Default dropdown value
+                                    dropdownValue: "untasked", // Default dropdown set to Untasked
                                 };
 
                                 const marker = L.marker([lat, lng]).addTo(markerClusterGroup);
 
                                 // Attach dynamic pop-up content logic
-                                marker.on('popupopen', function () {
+                                marker.on('popupopen', function() {
+                                    // Conditionally render the Task Unit dropdown for Air, Sea, or Land domains
+                                    let taskUnitHTML = "";
+
+                                    // If domain includes 'air'
+                                    if (domain.toLowerCase().includes("air")) {
+                                        taskUnitHTML = `
+                                            <label for="dropdown-${index}">Task Unit:</label>
+                                            <select id="dropdown-${index}">
+                                                <option value="untasked" ${userInputs[markerId].dropdownValue === "untasked" ? "selected" : ""}>Untasked</option>
+                                                <option value="oca" ${userInputs[markerId].dropdownValue === "oca" ? "selected" : ""}>OCA</option>
+                                                <option value="dca" ${userInputs[markerId].dropdownValue === "dca" ? "selected" : ""}>DCA</option>
+                                                <option value="cas" ${userInputs[markerId].dropdownValue === "cas" ? "selected" : ""}>CAS</option>
+                                                <option value="ai" ${userInputs[markerId].dropdownValue === "ai" ? "selected" : ""}>AI</option>
+                                                <option value="sead" ${userInputs[markerId].dropdownValue === "sead" ? "selected" : ""}>SEAD</option>
+                                                <option value="sa" ${userInputs[markerId].dropdownValue === "sa" ? "selected" : ""}>SA</option>
+                                                <option value="csar" ${userInputs[markerId].dropdownValue === "csar" ? "selected" : ""}>CSAR</option>
+                                                <option value="air-mob" ${userInputs[markerId].dropdownValue === "air-mob" ? "selected" : ""}>Air Mob</option>
+                                            </select>
+                                        `;
+                                    }
+                                    // If domain includes 'sea'
+                                    else if (domain.toLowerCase().includes("sea")) {
+                                        taskUnitHTML = `
+                                            <label for="dropdown-${index}">Task Unit:</label>
+                                            <select id="dropdown-${index}">
+                                                <option value="untasked" ${userInputs[markerId].dropdownValue === "untasked" ? "selected" : ""}>Untasked</option>
+                                                <option value="amphibious" ${userInputs[markerId].dropdownValue === "amphibious" ? "selected" : ""}>Amphibious Assault</option>
+                                                <option value="support" ${userInputs[markerId].dropdownValue === "support" ? "selected" : ""}>Combat Support</option>
+                                                <option value="airmobile" ${userInputs[markerId].dropdownValue === "airmobile" ? "selected" : ""}>Airmobile Transport</option>
+                                            </select>
+                                        `;
+                                    }
+                                    // If domain includes 'land'
+                                    else if (domain.toLowerCase().includes("land")) {
+                                        taskUnitHTML = `
+                                            <label for="dropdown-${index}">Task Unit:</label>
+                                            <select id="dropdown-${index}">
+                                                <option value="untasked" ${userInputs[markerId].dropdownValue === "untasked" ? "selected" : ""}>Untasked</option>
+                                                <option value="attack" ${userInputs[markerId].dropdownValue === "attack" ? "selected" : ""}>Attack</option>
+                                                <option value="defend" ${userInputs[markerId].dropdownValue === "defend" ? "selected" : ""}>Defend</option>
+                                                <option value="clear" ${userInputs[markerId].dropdownValue === "clear" ? "selected" : ""}>Clear</option>
+                                            </select>
+                                        `;
+                                    }
+
+                                    // Build the popup content using current slider and domain logic
                                     const popupContent = `
                                         <strong>Unit Name:</strong> ${unitName}<br>
+                                        <strong>Domain:</strong> ${domain}<br>
                                         <strong>Latitude:</strong> ${lat}<br>
                                         <strong>Longitude:</strong> ${lng}<br><br>
                                         <label for="slider-${index}">Adjust Value:</label>
                                         <input type="range" id="slider-${index}" min="0" max="100" value="${userInputs[markerId].sliderValue}"><br><br>
-                                        <label for="dropdown-${index}">Task Unit:</label>
-                                        <select id="dropdown-${index}">
-                                            <option value="oca" ${userInputs[markerId].dropdownValue === "oca" ? "selected" : ""}>OCA</option>
-                                            <option value="dca" ${userInputs[markerId].dropdownValue === "dca" ? "selected" : ""}>DCA</option>
-                                            <option value="cas" ${userInputs[markerId].dropdownValue === "cas" ? "selected" : ""}>CAS</option>
-                                            <option value="ai" ${userInputs[markerId].dropdownValue === "ai" ? "selected" : ""}>AI</option>
-                                            <option value="sead" ${userInputs[markerId].dropdownValue === "sead" ? "selected" : ""}>SEAD</option>
-                                            <option value="sa" ${userInputs[markerId].dropdownValue === "sa" ? "selected" : ""}>SA</option>
-                                            <option value="csar" ${userInputs[markerId].dropdownValue === "csar" ? "selected" : ""}>CSAR</option>
-                                            <option value="air-mob" ${userInputs[markerId].dropdownValue === "air-mob" ? "selected" : ""}>Air Mob</option>
-                                        </select>
+                                        ${taskUnitHTML}
                                     `;
 
                                     // Update the popup content
@@ -109,19 +149,22 @@
 
                                     // Reattach event listeners
                                     const slider = document.getElementById(`slider-${index}`);
-                                    slider.addEventListener('input', function () {
+                                    slider.addEventListener('input', function() {
                                         userInputs[markerId].sliderValue = parseInt(slider.value, 10);
                                         console.log(`Slider for ${markerId} updated to:`, slider.value);
                                     });
 
-                                    const dropdown = document.getElementById(`dropdown-${index}`);
-                                    dropdown.addEventListener('change', function () {
-                                        userInputs[markerId].dropdownValue = dropdown.value;
-                                        console.log(`Dropdown for ${markerId} updated to:`, dropdown.value);
-                                    });
+                                    if (taskUnitHTML !== "") {
+                                        const dropdown = document.getElementById(`dropdown-${index}`);
+                                        dropdown.addEventListener('change', function() {
+                                            userInputs[markerId].dropdownValue = dropdown.value;
+                                            console.log(`Dropdown for ${markerId} updated to:`, dropdown.value);
+                                        });
+                                    }
                                 });
 
-                                marker.bindPopup(""); // Attach an empty popup to enable dynamic content
+                                // Attach an empty popup so the marker can be clicked
+                                marker.bindPopup("");
                             }
                         });
 
