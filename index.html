@@ -1,208 +1,424 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scenario Builder</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scenario Builder</title>
+
+  <!-- Bootstrap CSS -->
+  <link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+  />
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <!-- MarkerCluster CSS -->
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css"
+  />
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css"
+  />
+
+  <!-- XLSX (for Excel reading) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- MarkerCluster JS -->
+  <script
+    src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"
+  ></script>
+
+  <!-- Custom Cluster Styling -->
+  <style>
+    .marker-cluster-small div,
+    .marker-cluster-medium div,
+    .marker-cluster-large div {
+      background-color: rgba(0, 123, 255, 0.7);
+      border-radius: 50%;
+      color: white;
+      font-weight: bold;
+      font-size: 12px;
+      line-height: 30px;
+      width: 30px;
+      height: 30px;
+      text-align: center;
+      border: 2px solid black;
+    }
+  </style>
 </head>
+
 <body>
-    <div class="container mt-3">
-        <h1 class="text-center">Scenario Builder</h1>
-        <div class="mb-3">
-            <label for="fileInput" class="form-label">Upload Excel File:</label>
-            <input type="file" id="fileInput" class="form-control">
-        </div>
-        <div class="mb-3">
-            <label for="searchInput" class="form-label">Search for a City or Unit Name:</label>
-            <input type="text" id="searchInput" class="form-control" placeholder="Enter city or unit name">
-            <button id="searchButton" class="btn btn-primary mt-2">Search</button>
-        </div>
-        <div id="map" style="height: 500px;"></div>
+  <div class="container mt-3">
+    <h1 class="text-center">Scenario Builder</h1>
+
+    <!-- File Input Section -->
+    <div class="mb-3">
+      <label for="fileInput" class="form-label">Upload Excel File:</label>
+      <input type="file" id="fileInput" class="form-control" />
     </div>
 
-    <script>
-        // Initialize the map
-        const map = L.map('map').setView([0, 0], 2);
+    <!-- Search Section -->
+    <div class="mb-3">
+      <label for="searchInput" class="form-label">
+        Search for a City, Unit Name, or Lat/Long:
+      </label>
+      <input
+        type="text"
+        id="searchInput"
+        class="form-control"
+        placeholder="Enter city, unit name, or lat/long"
+        onkeydown="if (event.key === 'Enter') document.getElementById('searchButton').click();"
+      />
+      <button id="searchButton" class="btn btn-primary mt-2">Search</button>
+    </div>
 
-        // Add a tile layer
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            attribution: '© OpenStreetMap contributors'
-        }).addTo(map);
+    <!-- Map Container -->
+    <div id="map" style="height: 500px;"></div>
+  </div>
 
-        // Initialize marker cluster
-        const markerClusterGroup = L.markerClusterGroup();
-        map.addLayer(markerClusterGroup);
+  <script>
+    // Initialize the map
+    const map = L.map("map").setView([0, 0], 2);
 
-        // Object to store user input data (slider and dropdown values) for each marker
-        const userInputs = {};
+    // Add a tile layer
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "© OpenStreetMap contributors",
+    }).addTo(map);
 
-        // Handle file input
-        document.getElementById('fileInput').addEventListener('change', function(event) {
-            const file = event.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    try {
-                        const data = new Uint8Array(e.target.result);
-                        const workbook = XLSX.read(data, { type: 'array' });
-                        const sheetName = workbook.SheetNames[0];
-                        const worksheet = workbook.Sheets[sheetName];
-                        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+    // Initialize marker cluster
+    const markerClusterGroup = L.markerClusterGroup();
+    map.addLayer(markerClusterGroup);
 
-                        // Find the index of "Latitude", "Longitude", "Unit Name", and "Domain" columns
-                        const headers = jsonData[0].map(header => header.toLowerCase());
-                        const latIndex = headers.indexOf("latitude");
-                        const lngIndex = headers.indexOf("longitude");
-                        const unitNameIndex = headers.indexOf("unit name");
-                        const domainIndex = headers.indexOf("domain");
+    // Store marker data for searching & user input for each marker
+    const markerData = [];
+    const userInputs = {};
 
-                        // Check if any required column is missing
-                        if (latIndex === -1 || lngIndex === -1 || unitNameIndex === -1 || domainIndex === -1) {
-                            alert('The file must contain columns labeled "Latitude", "Longitude", "Unit Name", and "Domain".');
-                            return;
-                        }
+    // Define marker color categories by Unit Type
+    const unitTypeColors = {
+      green: [
+        "Air Defense",
+        "Airborne Infantry",
+        "Motorized Infantry",
+        "Armor",
+        "Amphibious Infantry",
+        "Artillery",
+        "Sustainment",
+      ],
+      grey: ["Major Surface Ships", "Major Subsurface"],
+      blue: ["Fixed Wing", "Helicopter"],
+    };
 
-                        // Add markers to the map
-                        jsonData.slice(1).forEach((row, index) => {
-                            const lat = parseFloat(row[latIndex]);
-                            const lng = parseFloat(row[lngIndex]);
-                            const unitName = row[unitNameIndex] || "Unknown Unit";
-                            const domain = row[domainIndex] || "Unknown Domain";
+    // Get the correct marker icon color based on unit type
+    function getMarkerIcon(unitType) {
+      let color = "yellow"; // Default if not in any category
 
-                            if (!isNaN(lat) && !isNaN(lng)) {
-                                const markerId = `marker-${index}`; // Unique ID for each marker
+      if (unitTypeColors.green.includes(unitType)) {
+        color = "green";
+      } else if (unitTypeColors.grey.includes(unitType)) {
+        color = "grey";
+      } else if (unitTypeColors.blue.includes(unitType)) {
+        color = "blue";
+      }
 
-                                // Initialize default user input for this marker
-                                userInputs[markerId] = {
-                                    sliderValue: 100, // Default slider value
-                                    dropdownValue: "untasked", // Default dropdown set to Untasked
-                                };
+      return L.divIcon({
+        className: `custom-marker-${color}`,
+        html: `
+          <div
+            style="
+              background-color:${color};
+              width:20px;
+              height:20px;
+              border-radius:50%;
+              border:1px solid black;
+            "
+          ></div>`,
+      });
+    }
 
-                                const marker = L.marker([lat, lng]).addTo(markerClusterGroup);
+    // Handle Excel File Input
+    document.getElementById("fileInput").addEventListener("change", function (event) {
+      const file = event.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: "array" });
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
-                                // Attach dynamic pop-up content logic
-                                marker.on('popupopen', function() {
-                                    // Conditionally render the Task Unit dropdown for Air, Sea, or Land domains
-                                    let taskUnitHTML = "";
+            // Identify column indices: "Latitude", "Longitude", "Unit Name", "Domain", "Unit Type"
+            const headers = jsonData[0].map((h) => h.toLowerCase());
+            const latIndex = headers.indexOf("latitude");
+            const lngIndex = headers.indexOf("longitude");
+            const unitNameIndex = headers.indexOf("unit name");
+            const domainIndex = headers.indexOf("domain");
+            const unitTypeIndex = headers.indexOf("unit type");
 
-                                    // If domain includes 'air'
-                                    if (domain.toLowerCase().includes("air")) {
-                                        taskUnitHTML = `
-                                            <label for="dropdown-${index}">Task Unit:</label>
-                                            <select id="dropdown-${index}">
-                                                <option value="untasked" ${userInputs[markerId].dropdownValue === "untasked" ? "selected" : ""}>Untasked</option>
-                                                <option value="oca" ${userInputs[markerId].dropdownValue === "oca" ? "selected" : ""}>OCA</option>
-                                                <option value="dca" ${userInputs[markerId].dropdownValue === "dca" ? "selected" : ""}>DCA</option>
-                                                <option value="cas" ${userInputs[markerId].dropdownValue === "cas" ? "selected" : ""}>CAS</option>
-                                                <option value="ai" ${userInputs[markerId].dropdownValue === "ai" ? "selected" : ""}>AI</option>
-                                                <option value="sead" ${userInputs[markerId].dropdownValue === "sead" ? "selected" : ""}>SEAD</option>
-                                                <option value="sa" ${userInputs[markerId].dropdownValue === "sa" ? "selected" : ""}>SA</option>
-                                                <option value="csar" ${userInputs[markerId].dropdownValue === "csar" ? "selected" : ""}>CSAR</option>
-                                                <option value="air-mob" ${userInputs[markerId].dropdownValue === "air-mob" ? "selected" : ""}>Air Mob</option>
-                                            </select>
-                                        `;
-                                    }
-                                    // If domain includes 'sea'
-                                    else if (domain.toLowerCase().includes("sea")) {
-                                        taskUnitHTML = `
-                                            <label for="dropdown-${index}">Task Unit:</label>
-                                            <select id="dropdown-${index}">
-                                                <option value="untasked" ${userInputs[markerId].dropdownValue === "untasked" ? "selected" : ""}>Untasked</option>
-                                                <option value="amphibious" ${userInputs[markerId].dropdownValue === "amphibious" ? "selected" : ""}>Amphibious Assault</option>
-                                                <option value="support" ${userInputs[markerId].dropdownValue === "support" ? "selected" : ""}>Combat Support</option>
-                                                <option value="airmobile" ${userInputs[markerId].dropdownValue === "airmobile" ? "selected" : ""}>Airmobile Transport</option>
-                                            </select>
-                                        `;
-                                    }
-                                    // If domain includes 'land'
-                                    else if (domain.toLowerCase().includes("land")) {
-                                        taskUnitHTML = `
-                                            <label for="dropdown-${index}">Task Unit:</label>
-                                            <select id="dropdown-${index}">
-                                                <option value="untasked" ${userInputs[markerId].dropdownValue === "untasked" ? "selected" : ""}>Untasked</option>
-                                                <option value="attack" ${userInputs[markerId].dropdownValue === "attack" ? "selected" : ""}>Attack</option>
-                                                <option value="defend" ${userInputs[markerId].dropdownValue === "defend" ? "selected" : ""}>Defend</option>
-                                                <option value="clear" ${userInputs[markerId].dropdownValue === "clear" ? "selected" : ""}>Clear</option>
-                                            </select>
-                                        `;
-                                    }
+            // Check for required columns
+            if (
+              latIndex === -1 ||
+              lngIndex === -1 ||
+              unitNameIndex === -1 ||
+              domainIndex === -1 ||
+              unitTypeIndex === -1
+            ) {
+              alert(
+                'The file must contain "Latitude", "Longitude", "Unit Name", "Domain", and "Unit Type" (case-insensitive).'
+              );
+              return;
+            }
 
-                                    // Build the popup content using current slider and domain logic
-                                    const popupContent = `
-                                        <strong>Unit Name:</strong> ${unitName}<br>
-                                        <strong>Domain:</strong> ${domain}<br>
-                                        <strong>Latitude:</strong> ${lat}<br>
-                                        <strong>Longitude:</strong> ${lng}<br><br>
-                                        <label for="slider-${index}">Adjust Value:</label>
-                                        <input type="range" id="slider-${index}" min="0" max="100" value="${userInputs[markerId].sliderValue}"><br><br>
-                                        ${taskUnitHTML}
-                                    `;
+            // Parse rows
+            jsonData.slice(1).forEach((row, index) => {
+              const lat = parseFloat(row[latIndex]);
+              const lng = parseFloat(row[lngIndex]);
+              const unitName = row[unitNameIndex] || "Unknown Unit";
+              const domain = row[domainIndex] || "Unknown Domain";
+              const unitType = row[unitTypeIndex] || "Unknown Type";
 
-                                    // Update the popup content
-                                    marker.getPopup().setContent(popupContent);
+              if (!isNaN(lat) && !isNaN(lng)) {
+                // Create a unique marker ID
+                const markerId = `marker-${index}`;
 
-                                    // Reattach event listeners
-                                    const slider = document.getElementById(`slider-${index}`);
-                                    slider.addEventListener('input', function() {
-                                        userInputs[markerId].sliderValue = parseInt(slider.value, 10);
-                                        console.log(`Slider for ${markerId} updated to:`, slider.value);
-                                    });
-
-                                    if (taskUnitHTML !== "") {
-                                        const dropdown = document.getElementById(`dropdown-${index}`);
-                                        dropdown.addEventListener('change', function() {
-                                            userInputs[markerId].dropdownValue = dropdown.value;
-                                            console.log(`Dropdown for ${markerId} updated to:`, dropdown.value);
-                                        });
-                                    }
-                                });
-
-                                // Attach an empty popup so the marker can be clicked
-                                marker.bindPopup("");
-                            }
-                        });
-
-                        if (markerClusterGroup.getLayers().length > 0) {
-                            map.fitBounds(markerClusterGroup.getBounds());
-                        } else {
-                            alert('No valid latitude and longitude found in the uploaded file.');
-                        }
-                    } catch (error) {
-                        alert('Error processing the file. Ensure it is a valid Excel file.');
-                    }
+                // Initialize user inputs for tasks/slider
+                userInputs[markerId] = {
+                  sliderValue: 100,
+                  dropdownValue: "untasked",
+                  domain: domain,
+                  unitName: unitName,
+                  unitType: unitType,
                 };
-                reader.readAsArrayBuffer(file);
-            }
-        });
 
-        // Handle search
-        document.getElementById('searchButton').addEventListener('click', async function() {
-            const query = document.getElementById('searchInput').value.trim();
-            if (query === '') {
-                alert('Please enter a city or unit name to search.');
-                return;
-            }
+                // Create marker with color-coded icon
+                const markerIcon = getMarkerIcon(unitType);
+                const marker = L.marker([lat, lng], { icon: markerIcon });
 
-            try {
-                const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
-                const results = await response.json();
+                // Bind the dynamic popup
+                marker.on("popupopen", function () {
+                  let taskUnitHTML = "";
+                  const d = domain.toLowerCase();
 
-                if (results.length > 0) {
-                    const { lat, lon } = results[0];
-                    map.setView([parseFloat(lat), parseFloat(lon)], 12);
-                } else {
-                    alert('No matching city or unit name found.');
-                }
-            } catch (error) {
-                alert('Error searching for the city.');
+                  if (d.includes("air")) {
+                    taskUnitHTML = `
+                      <label for="dropdown-${index}">Task Unit:</label>
+                      <select id="dropdown-${index}">
+                        <option value="untasked" ${
+                          userInputs[markerId].dropdownValue === "untasked"
+                            ? "selected"
+                            : ""
+                        }>Untasked</option>
+                        <option value="oca" ${
+                          userInputs[markerId].dropdownValue === "oca"
+                            ? "selected"
+                            : ""
+                        }>OCA</option>
+                        <option value="dca" ${
+                          userInputs[markerId].dropdownValue === "dca"
+                            ? "selected"
+                            : ""
+                        }>DCA</option>
+                        <option value="cas" ${
+                          userInputs[markerId].dropdownValue === "cas"
+                            ? "selected"
+                            : ""
+                        }>CAS</option>
+                        <option value="ai" ${
+                          userInputs[markerId].dropdownValue === "ai"
+                            ? "selected"
+                            : ""
+                        }>AI</option>
+                        <option value="sead" ${
+                          userInputs[markerId].dropdownValue === "sead"
+                            ? "selected"
+                            : ""
+                        }>SEAD</option>
+                        <option value="sa" ${
+                          userInputs[markerId].dropdownValue === "sa"
+                            ? "selected"
+                            : ""
+                        }>SA</option>
+                        <option value="csar" ${
+                          userInputs[markerId].dropdownValue === "csar"
+                            ? "selected"
+                            : ""
+                        }>CSAR</option>
+                        <option value="air-mob" ${
+                          userInputs[markerId].dropdownValue === "air-mob"
+                            ? "selected"
+                            : ""
+                        }>Air Mob</option>
+                      </select>
+                    `;
+                  } else if (d.includes("sea")) {
+                    taskUnitHTML = `
+                      <label for="dropdown-${index}">Task Unit:</label>
+                      <select id="dropdown-${index}">
+                        <option value="untasked" ${
+                          userInputs[markerId].dropdownValue === "untasked"
+                            ? "selected"
+                            : ""
+                        }>Untasked</option>
+                        <option value="amphibious" ${
+                          userInputs[markerId].dropdownValue === "amphibious"
+                            ? "selected"
+                            : ""
+                        }>Amphibious Assault</option>
+                        <option value="support" ${
+                          userInputs[markerId].dropdownValue === "support"
+                            ? "selected"
+                            : ""
+                        }>Combat Support</option>
+                        <option value="airmobile" ${
+                          userInputs[markerId].dropdownValue === "airmobile"
+                            ? "selected"
+                            : ""
+                        }>Airmobile Transport</option>
+                      </select>
+                    `;
+                  } else if (d.includes("land")) {
+                    taskUnitHTML = `
+                      <label for="dropdown-${index}">Task Unit:</label>
+                      <select id="dropdown-${index}">
+                        <option value="untasked" ${
+                          userInputs[markerId].dropdownValue === "untasked"
+                            ? "selected"
+                            : ""
+                        }>Untasked</option>
+                        <option value="attack" ${
+                          userInputs[markerId].dropdownValue === "attack"
+                            ? "selected"
+                            : ""
+                        }>Attack</option>
+                        <option value="defend" ${
+                          userInputs[markerId].dropdownValue === "defend"
+                            ? "selected"
+                            : ""
+                        }>Defend</option>
+                        <option value="clear" ${
+                          userInputs[markerId].dropdownValue === "clear"
+                            ? "selected"
+                            : ""
+                        }>Clear</option>
+                      </select>
+                    `;
+                  }
+
+                  // Build the popup content
+                  const popupContent = `
+                    <strong>Unit Name:</strong> ${unitName}<br>
+                    <strong>Unit Type:</strong> ${userInputs[markerId].unitType}<br>
+                    <strong>Domain:</strong> ${domain}<br>
+                    <strong>Latitude:</strong> ${lat}<br>
+                    <strong>Longitude:</strong> ${lng}<br><br>
+                    <label for="slider-${index}">Adjust Value:</label>
+                    <input
+                      type="range"
+                      id="slider-${index}"
+                      min="0"
+                      max="100"
+                      value="${userInputs[markerId].sliderValue}"
+                    /><br><br>
+                    ${taskUnitHTML}
+                  `;
+
+                  marker.getPopup().setContent(popupContent);
+
+                  // Reattach event listeners
+                  const slider = document.getElementById(`slider-${index}`);
+                  slider.addEventListener("input", () => {
+                    userInputs[markerId].sliderValue = parseInt(slider.value, 10);
+                  });
+
+                  if (taskUnitHTML !== "") {
+                    const dropdown = document.getElementById(`dropdown-${index}`);
+                    dropdown.addEventListener("change", () => {
+                      userInputs[markerId].dropdownValue = dropdown.value;
+                    });
+                  }
+                });
+
+                marker.bindPopup("");
+                markerClusterGroup.addLayer(marker);
+
+                // Store for searching by unit name
+                markerData.push({ lat, lng, unitName, domain, unitType });
+              }
+            });
+
+            if (markerClusterGroup.getLayers().length > 0) {
+              map.fitBounds(markerClusterGroup.getBounds());
+            } else {
+              alert("No valid latitude/longitude found in the file.");
             }
-        });
-    </script>
+          } catch (error) {
+            alert("Error processing file. Ensure it is a valid Excel file.");
+            console.error(error);
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      }
+    });
+
+    // Handle search for city, unit name, or lat/long
+    document.getElementById("searchButton").addEventListener("click", async function () {
+      const query = document.getElementById("searchInput").value.trim();
+      if (!query) {
+        alert("Please enter a city, unit name, or lat/long to search.");
+        return;
+      }
+
+      // 1. Check if user typed lat,lng => move map directly
+      const latLngMatch = query.match(
+        /^\\s*([+-]?\\d+(\\.\\d+)?)[,\\s]+([+-]?\\d+(\\.\\d+)?)\\s*$/
+      );
+      if (latLngMatch) {
+        const lat = parseFloat(latLngMatch[1]);
+        const lng = parseFloat(latLngMatch[3]);
+        if (!isNaN(lat) && !isNaN(lng)) {
+          map.setView([lat, lng], 12);
+          return;
+        }
+      }
+
+      // 2. Search for a matching unit name in markerData
+      const unitResult = markerData.find((m) =>
+        m.unitName.toLowerCase().includes(query.toLowerCase())
+      );
+      if (unitResult) {
+        map.setView([unitResult.lat, unitResult.lng], 12);
+        return;
+      }
+
+      // 3. If not found, do city lookup via Nominatim
+      try {
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+            query
+          )}`
+        );
+        const results = await response.json();
+
+        if (results.length > 0) {
+          const { lat, lon } = results[0];
+          map.setView([parseFloat(lat), parseFloat(lon)], 12);
+        } else {
+          alert("No matching city or unit name found.");
+        }
+      } catch (error) {
+        alert("Error searching for the city.");
+      }
+    });
+  </script>
 </body>
 </html>
+
