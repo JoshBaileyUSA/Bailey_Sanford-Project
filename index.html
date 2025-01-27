@@ -9,6 +9,21 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<style>
+    .marker-cluster-small div,
+    .marker-cluster-medium div,
+    .marker-cluster-large div {
+        background-color: rgba(0, 123, 255, 0.7); /* Semi-transparent blue background */
+        border-radius: 50%; /* Circular background */
+        color: white; font-weight: bold; /* White text for contrast */
+        font-size: 12px; /* Adjust font size */
+        line-height: 30px; /* Center the text vertically */
+        width: 30px; /* Width of the circle */
+        height: 30px; /* Height of the circle */
+        text-align: center; /* Center text horizontally */
+        border: 2px solid black; /* White border for contrast */
+    }
+</style>
 </head>
 <body>
     <div class="container mt-3">
@@ -18,8 +33,8 @@
             <input type="file" id="fileInput" class="form-control">
         </div>
         <div class="mb-3">
-            <label for="searchInput" class="form-label">Search for a City or Unit Name:</label>
-            <input type="text" id="searchInput" class="form-control" placeholder="Enter city or unit name">
+            <label for="searchInput" class="form-label">Search for a City, Unit Name, or Lat/Long:</label>
+            <input type="text" id="searchInput" class="form-control" onkeydown="if (event.key === 'Enter') document.getElementById('searchButton').click();" placeholder="Enter city, unit name, or lat/long">
             <button id="searchButton" class="btn btn-primary mt-2">Search</button>
         </div>
         <div id="map" style="height: 500px;"></div>
@@ -42,6 +57,30 @@
         // Store markers for search functionality
         const markerData = [];
 
+        // Define marker colors by unit type
+        const unitTypeColors = {
+            green: ["Air Defense", "Airborne Infantry", "Motorized Infantry","Armor", "Amphibious Infantry", "Artillery", "Sustainment"],
+            grey: ["Major Surface Ships", "Major Subsurface"],
+            blue: ["Fixed Wing", "Helicopter"]
+        };
+
+        function getMarkerIcon(unitType) {
+            let color = "yellow"; // Default color for other unit types
+
+            if (unitTypeColors.green.includes(unitType)) {
+                color = "green";
+            } else if (unitTypeColors.grey.includes(unitType)) {
+                color = "grey";
+            } else if (unitTypeColors.blue.includes(unitType)) {
+                color = "blue";
+            }
+
+            return L.divIcon({
+                className: `custom-marker-${color}`,
+                html: `<div style="background-color:${color}; width: 20px; height: 20px; border-radius: 50%; border: 1px solid black;"></div>`
+            });
+        }
+
         // Handle file input
         document.getElementById('fileInput').addEventListener('change', function(event) {
             const file = event.target.files[0];
@@ -59,14 +98,15 @@
 
                         console.log('Parsed data:', jsonData);
 
-                        // Find the index of "Latitude", "Longitude", and "Unit Name" columns
+                        // Find the index of "Latitude", "Longitude", "Unit Name", and "Unit Type" columns
                         const headers = jsonData[0].map(header => header.toLowerCase());
                         const latIndex = headers.indexOf("latitude");
                         const lngIndex = headers.indexOf("longitude");
                         const unitNameIndex = headers.indexOf("unit name");
+                        const unitTypeIndex = headers.indexOf("unit type");
 
-                        if (latIndex === -1 || lngIndex === -1 || unitNameIndex === -1) {
-                            alert('The file must contain columns labeled "Latitude", "Longitude", and "Unit Name" (case-insensitive).');
+                        if (latIndex === -1 || lngIndex === -1 || unitNameIndex === -1 || unitTypeIndex === -1) {
+                            alert('The file must contain columns labeled "Latitude", "Longitude", "Unit Name", and "Unit Type" (case-insensitive).');
                             return;
                         }
 
@@ -76,16 +116,17 @@
                                 const lat = parseFloat(row[latIndex]);
                                 const lng = parseFloat(row[lngIndex]);
                                 const unitName = row[unitNameIndex] || "Unknown Unit";
+                                const unitType = row[unitTypeIndex] || "Unknown Type";
 
                                 if (!isNaN(lat) && !isNaN(lng)) {
-                                    console.log(`Adding marker at row ${index + 1}:`, lat, lng, unitName);
-                                    const marker = L.marker([lat, lng]);
-                                    marker.bindPopup(`<strong>Unit Name:</strong> ${unitName}<br><strong>Latitude:</strong> ${lat}<br><strong>Longitude:</strong> ${lng}`);
+                                    console.log(`Adding marker at row ${index + 1}:`, lat, lng, unitName, unitType);
+                                    const marker = L.marker([lat, lng], { icon: getMarkerIcon(unitType) });
+                                    marker.bindPopup(`<strong>Unit Name:</strong> ${unitName}<br><strong>Unit Type:</strong> ${unitType}<br><strong>Latitude:</strong> ${lat}<br><strong>Longitude:</strong> ${lng}`);
 
                                     markerClusterGroup.addLayer(marker);
 
                                     // Store marker data for search
-                                    markerData.push({ lat, lng, unitName });
+                                    markerData.push({ lat, lng, unitName, unitType });
                                 } else {
                                     console.warn(`Invalid coordinates at row ${index + 1}:`, row);
                                 }
@@ -93,15 +134,13 @@
 
                             if (markerClusterGroup.getLayers().length > 0) {
                                 map.fitBounds(markerClusterGroup.getBounds());
-                            } else {
-                                alert('No valid latitude and longitude found in the uploaded file.');
                             }
                         } else {
                             alert('The uploaded file does not contain any data.');
                         }
                     } catch (error) {
                         console.error('Error processing file:', error);
-                        alert('An error occurred while processing the file. Please ensure it is a valid Excel file with latitude, longitude, and unit name data.');
+                        alert('An error occurred while processing the file. Please ensure it is a valid Excel file with latitude, longitude, unit name, and unit type data.');
                     }
                 };
                 reader.readAsArrayBuffer(file);
@@ -123,8 +162,7 @@
             const unitResult = markerData.find(marker => marker.unitName.toLowerCase().includes(query.toLowerCase()));
 
             if (unitResult) {
-                map.setView([unitResult.lat, unitResult.lng], 12);
-                
+                map.setView([unitResult.lat, unitResult.lng], 15);
                 return;
             }
 
@@ -135,8 +173,7 @@
 
                 if (results.length > 0) {
                     const { lat, lon, display_name } = results[0];
-                    map.setView([parseFloat(lat), parseFloat(lon)], 12);
-                    
+                    map.setView([parseFloat(lat), parseFloat(lon)], 15);
                 } else {
                     alert('No matching city or unit name found.');
                 }
